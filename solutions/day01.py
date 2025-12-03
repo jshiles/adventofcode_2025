@@ -8,14 +8,17 @@ def rotate_dial(starting_position: int, direction: str, distance: int) -> int:
 
     ending_position = starting_position
     distance = -1 * distance if direction == 'L' else distance
+    
     if ending_position + distance > 99:
         distance = ending_position + distance - 99 -1
         ending_position = 0 
         return rotate_dial(ending_position, direction, abs(distance))
+    
     elif ending_position + distance < 0:
         distance = ending_position + distance + 1
         ending_position = 99
         return rotate_dial(ending_position, direction, abs(distance))
+    
     else:
         return ending_position + distance 
 
