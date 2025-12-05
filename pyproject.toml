@@ -1,10 +1,14 @@
 [project]
 name = "adventofcode-2025"
 version = "0.1.0"
-requires-python = ">=3.11"
+requires-python = ">=3.14"
+dependencies = ["numpy"]
 
 [project.optional-dependencies]
 dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["solutions*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
