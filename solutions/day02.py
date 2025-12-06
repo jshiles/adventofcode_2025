@@ -85,7 +85,7 @@ def part2(input_text: str) -> int:
 
 
 if __name__ == "__main__":
-    with open("puzzel_input/day02.txt") as f:
+    with open("puzzle_input/day02.txt") as f:
         input_text = f.read()
     print(f"Part 1: {part1(input_text)}")
     print(f"Part 2: {part2(input_text)}")

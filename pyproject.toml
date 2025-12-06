@@ -1,8 +1,8 @@
 [project]
 name = "adventofcode-2025"
 version = "0.1.0"
-requires-python = ">=3.14"
-dependencies = ["numpy"]
+requires-python = ">=3.12"
+dependencies = ["numpy", "pandas"]
 
 [project.optional-dependencies]
 dev = ["pytest"]
