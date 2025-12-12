@@ -3,8 +3,11 @@
 
 import re
 from collections import deque
-from dataclasses import dataclass 
+from dataclasses import dataclass
 from typing import List, Optional, Tuple
+
+import numpy as np
+from scipy.optimize import milp, LinearConstraint, Bounds
 
 
 @dataclass(frozen=True)
@@ -15,7 +18,16 @@ class Machine:
 
 
 def apply_button(state: str, button: Tuple[int, ...]) -> str:
-    """Apply a button push to a state string, returning the new state."""
+    """
+    Apply a button push to a state string, returning the new state.
+
+    Args:
+        state: Current state string of indicator lights ('.' or '#')
+        button: Tuple of indices to toggle
+
+    Returns:
+        New state string after toggling the specified indices
+    """
     lights = list(state)
     for idx in button:
         lights[idx] = '#' if lights[idx] == '.' else '.'
@@ -65,7 +77,16 @@ def find_minimal_sequence(
 def find_minimal_sequence_joltage(target: List[int], buttons: List[Tuple[int, ...]]) -> Optional[int]:
     """
     Find the minimal number of button presses to reach the target joltage values.
-    Uses bounded search since button press order doesn't matter.
+
+    Solves the system A @ x = target where x >= 0 and minimizes sum(x).
+    Uses Mixed Integer Linear Programming (MILP) for efficient solving.
+
+    Args:
+        target: The target joltage values for each position
+        buttons: List of button tuples, where each tuple contains indices to increment
+
+    Returns:
+        The minimal total number of button presses, or None if impossible
     """
     if all(t == 0 for t in target):
         return 0
@@ -73,50 +94,45 @@ def find_minimal_sequence_joltage(target: List[int], buttons: List[Tuple[int, ..
     n_buttons = len(buttons)
     n_positions = len(target)
 
-    # Build matrix: effect[btn][pos] = 1 if button affects position, else 0
-    effect = [[0] * n_positions for _ in range(n_buttons)]
+    # Build effect matrix A: A[pos][btn] = 1 if button affects position
+    # We want A @ x = target (equality constraint)
+    A_eq = np.zeros((n_positions, n_buttons), dtype=np.float64)
     for btn_idx, button in enumerate(buttons):
         for pos in button:
             if pos < n_positions:
-                effect[btn_idx][pos] = 1
+                A_eq[pos, btn_idx] = 1
+
+    b_eq = np.array(target, dtype=np.float64)
 
     # Check if any position has no buttons that can reach it
-    for pos, t in enumerate(target):
-        if t > 0 and not any(effect[btn][pos] for btn in range(n_buttons)):
+    for pos in range(n_positions):
+        if b_eq[pos] > 0 and A_eq[pos].sum() == 0:
             return None
 
-    # Upper bound: max presses of any single button is max(target)
-    max_presses = max(target) if target else 0
+    # Objective: minimize sum of all button presses
+    c = np.ones(n_buttons)
 
-    # DFS with pruning: determine count for each button
-    def solve(btn_idx: int, remaining: List[int], total_presses: int) -> Optional[int]:
-        if btn_idx == n_buttons:
-            return total_presses if all(r == 0 for r in remaining) else None
+    # Bounds: x >= 0, x <= max(target) (upper bound for efficiency)
+    upper_bound = max(target) if target else 0
+    bounds = Bounds(lb=0, ub=upper_bound)
 
-        # Prune: if any remaining is negative, invalid
-        if any(r < 0 for r in remaining):
-            return None
+    # Equality constraint: A @ x = b
+    constraints = LinearConstraint(A_eq, b_eq, b_eq)
 
-        best = None
-        # Try pressing this button 0 to min(max possible useful presses) times
-        max_useful = min(max_presses, min(
-            (remaining[pos] for pos in range(n_positions) if effect[btn_idx][pos] == 1),
-            default=0
-        ))
+    # All variables are integers
+    integrality = np.ones(n_buttons)
 
-        for presses in range(max_useful + 1):
-            new_remaining = remaining[:]
-            for pos in range(n_positions):
-                new_remaining[pos] -= effect[btn_idx][pos] * presses
+    # Solve using MILP
+    result = milp(c, constraints=constraints, bounds=bounds, integrality=integrality)
 
-            result = solve(btn_idx + 1, new_remaining, total_presses + presses)
-            if result is not None:
-                if best is None or result < best:
-                    best = result
+    if result.success and result.x is not None:
+        # Round to ensure integer (should already be, but float precision)
+        solution = np.round(result.x).astype(int)
+        # Verify the solution
+        if np.allclose(A_eq @ solution, b_eq):
+            return int(solution.sum())
 
-        return best
-
-    return solve(0, list(target), 0)
+    return None
 
 
 def parse(input_text: str) -> List[Machine]:
